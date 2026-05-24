@@ -1,0 +1,65 @@
+[project]
+name = "ai-change-analyzer"
+version = "0.1.0"
+description = "AI-powered change analyzer for JIRA tickets, GitHub PRs, and graph insights."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "apscheduler>=3.10.0",
+    "azure-cosmos>=4.7.0",
+    "azure-storage-blob>=12.23.0",
+    "fastapi>=0.115.0",
+    "gremlinpython>=3.7.0",
+    "gunicorn>=23.0.0",
+    "httpx>=0.27.0",
+    "loguru>=0.7.0",
+    "openai>=1.50.0",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "requests>=2.32.0",
+    "tree-sitter>=0.23.0",
+    "tree-sitter-cpp>=0.23.0",
+    "tree-sitter-starlark>=0.23.0",
+    "uvicorn[standard]>=0.32.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = ["src"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingImports = true
+reportMissingTypeStubs = false
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: marks tests that require external services",
+    "slow: marks tests that are slow to run",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
