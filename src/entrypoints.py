@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -11,10 +13,13 @@ from exceptions import (
     ChangeAnalyzerError,
     ConfigurationError,
     GitHubClientError,
+    GitRepositoryError,
     GraphDatabaseError,
     JiraClientError,
     ParserError,
 )
+from git_integration.git_client import GitClient
+from parsers.git_repo_parser import parse_and_store_repository
 from pydantic_formats import (
     AnalyzePRRequest,
     AnalyzePRWithCommentTargetRequest,
@@ -27,9 +32,11 @@ from pydantic_formats import (
     InitialFillReposRequest,
     LoadPRRequest,
     OperationResponse,
+    ParseRepositoryRequest,
+    RepositoryInventoryResponse,
     normalize_repo_slug,
-    
 )
+from utils import get_repo_storage_dir
 
 
 def health_check() -> HealthResponse:
@@ -76,18 +83,72 @@ async def analyze_pr_with_comment_target(
 async def clone_repository(request: CloneRepositoryRequest) -> OperationResponse:
     if not request.repository and not request.clone_url:
         raise ConfigurationError("Provide either repository or clone_url")
+
     identifier = request.clone_url or normalize_repo_slug(request.repository or "")
-    logger.info("Cloning repository {}", identifier)
+    client = GitClient(base_dir=get_repo_storage_dir())
+    local_path = await asyncio.to_thread(
+        client.clone_or_pull,
+        identifier,
+        target_directory=request.target_directory,
+    )
+    metadata = await asyncio.to_thread(client.metadata, local_path)
+
+    logger.info("Cloned or updated repository at {}", local_path)
     request_id = str(uuid.uuid4())
     return OperationResponse(
-        status="accepted",
-        message=f"Repository clone queued for {identifier}",
+        status="completed",
+        message=f"Repository available at {local_path}",
         request_id=request_id,
         data={
             "repository": request.repository,
             "clone_url": request.clone_url,
-            "target_directory": request.target_directory,
+            "local_path": str(local_path),
+            **metadata,
         },
+    )
+
+
+async def parse_repository(request: ParseRepositoryRequest) -> RepositoryInventoryResponse:
+    """Clone or open a repository, scan it, and store inventory artifacts."""
+    repo_path = await _resolve_repository_path(request)
+    summary = await asyncio.to_thread(
+        parse_and_store_repository,
+        repo_path,
+        max_files=request.max_files,
+        store_inventory=request.store_inventory,
+    )
+    return RepositoryInventoryResponse(
+        status="completed",
+        message=f"Repository inventory built for {summary['repository_name']}",
+        repository_name=summary["repository_name"],
+        local_path=summary["local_path"],
+        head_commit=summary["head_commit"],
+        active_branch=summary["active_branch"],
+        file_count=summary["file_count"],
+        directory_count=summary["directory_count"],
+        node_count=summary["node_count"],
+        edge_count=summary["edge_count"],
+        inventory_path=summary["inventory_path"],
+    )
+
+
+async def _resolve_repository_path(request: ParseRepositoryRequest) -> Path:
+    if request.repository_path:
+        path = Path(request.repository_path)
+        if not path.exists():
+            raise GitRepositoryError(f"Repository path does not exist: {path}")
+        return path
+
+    if not request.repository and not request.clone_url:
+        raise ConfigurationError("Provide repository_path, repository, or clone_url")
+
+    identifier = request.clone_url or normalize_repo_slug(request.repository or "")
+    client = GitClient(base_dir=get_repo_storage_dir())
+    return await asyncio.to_thread(
+        client.clone_or_pull,
+        identifier,
+        target_directory=request.target_directory,
+        depth=request.shallow_depth,
     )
 
 
@@ -157,6 +218,7 @@ def map_exception_to_status(exc: ChangeAnalyzerError) -> int:
     mapping: dict[type[ChangeAnalyzerError], int] = {
         ConfigurationError: 400,
         ParserError: 422,
+        GitRepositoryError: 400,
         JiraClientError: 502,
         GitHubClientError: 502,
         GraphDatabaseError: 503,

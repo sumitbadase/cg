@@ -21,6 +21,8 @@ from pydantic_formats import (
     InitialFillReposRequest,
     LoadPRRequest,
     OperationResponse,
+    ParseRepositoryRequest,
+    RepositoryInventoryResponse,
 )
 from scheduler import create_scheduler, shutdown_scheduler, start_scheduler
 
@@ -81,6 +83,17 @@ async def post_analyze_pr_with_comment_target(request: AnalyzePRWithCommentTarge
 @app.post("/clone-repository", response_model=OperationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["github"])
 async def post_clone_repository(request: CloneRepositoryRequest) -> OperationResponse:
     return await _invoke(entrypoints.clone_repository, request)
+
+
+@app.post(
+    "/parse-repository",
+    response_model=RepositoryInventoryResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["github"],
+)
+async def post_parse_repository(request: ParseRepositoryRequest) -> RepositoryInventoryResponse:
+    """Clone or open a git repository, scan files, and store inventory JSON."""
+    return await _invoke(entrypoints.parse_repository, request)
 
 
 @app.post("/initial-fill-repos", response_model=OperationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["backfill"])

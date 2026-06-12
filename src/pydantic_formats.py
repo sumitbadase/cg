@@ -69,6 +69,34 @@ class GraphOperationResponse(BaseModel):
     nodes_created: int | None = None
 
 
+class ParseRepositoryRequest(BaseModel):
+    """Request payload for parsing a local or remote git repository."""
+
+    repository: GitHubRepoSlug | None = None
+    clone_url: NonEmptyStr | None = None
+    repository_path: NonEmptyStr | None = None
+    target_directory: NonEmptyStr | None = None
+    max_files: int | None = Field(default=None, ge=1)
+    store_inventory: bool = True
+    shallow_depth: int | None = Field(default=1, ge=1)
+
+
+class RepositoryInventoryResponse(BaseModel):
+    """Response payload for repository parse/inventory operations."""
+
+    status: str
+    message: str
+    repository_name: str
+    local_path: str
+    head_commit: str
+    active_branch: str
+    file_count: int
+    directory_count: int
+    node_count: int
+    edge_count: int
+    inventory_path: str | None = None
+
+
 class OperationResponse(BaseModel):
     status: str
     message: str

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -38,3 +40,13 @@ def safe_get(data: dict[str, Any], *keys: str, default: Any = None) -> Any:
             return default
         current = current[key]
     return current
+
+
+def get_repo_storage_dir() -> Path:
+    """Return the local directory used for cloned git repositories."""
+    return Path(os.getenv("REPO_STORAGE_DIR", "data/repos")).resolve()
+
+
+def get_inventory_storage_dir() -> Path:
+    """Return the local directory used for saved repository inventories."""
+    return Path(os.getenv("INVENTORY_STORAGE_DIR", "data/inventories")).resolve()

@@ -24,6 +24,10 @@ class GitHubClientError(ChangeAnalyzerError):
     """Raised when GitHub API operations fail."""
 
 
+class GitRepositoryError(ChangeAnalyzerError):
+    """Raised when local git clone, pull, or parse operations fail."""
+
+
 class GraphDatabaseError(ChangeAnalyzerError):
     """Raised when graph database operations fail."""
 

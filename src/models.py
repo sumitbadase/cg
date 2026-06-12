@@ -12,6 +12,8 @@ from pydantic_formats import (
     InitialFillReposRequest,
     LoadPRRequest,
     OperationResponse,
+    ParseRepositoryRequest,
+    RepositoryInventoryResponse,
 )
 
 __all__ = [
@@ -26,4 +28,6 @@ __all__ = [
     "InitialFillReposRequest",
     "LoadPRRequest",
     "OperationResponse",
+    "ParseRepositoryRequest",
+    "RepositoryInventoryResponse",
 ]

@@ -2,34 +2,27 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
+from git_integration.git_client import GitClient
+from utils import get_repo_storage_dir
 
-def pull_repositories(repos: list[str], target_dir: str | Path) -> list[Path]:
+
+def pull_repositories(repos: list[str], target_dir: str | Path | None = None) -> list[Path]:
     """Clone or pull a list of GitHub repositories into a target directory.
 
     Args:
         repos: List of repository URLs or ``owner/name`` slugs.
-        target_dir: Local directory to store cloned repositories.
+        target_dir: Optional override for repository storage root.
 
     Returns:
         List of paths to cloned repository directories.
     """
-    target = Path(target_dir)
-    target.mkdir(parents=True, exist_ok=True)
+    base_dir = Path(target_dir) if target_dir is not None else get_repo_storage_dir()
+    client = GitClient(base_dir=base_dir)
     cloned: list[Path] = []
 
     for repo in repos:
-        # TODO: Resolve slug to clone URL, skip if already cloned, git pull otherwise
-        repo_name = repo.rstrip("/").split("/")[-1].removesuffix(".git")
-        dest = target / repo_name
-        cloned.append(dest)
-
-        if dest.exists():
-            subprocess.run(["git", "-C", str(dest), "pull"], check=False)  # noqa: S603
-        else:
-            clone_url = repo if repo.startswith("http") else f"https://github.com/{repo}.git"
-            subprocess.run(["git", "clone", clone_url, str(dest)], check=False)  # noqa: S603
+        cloned.append(client.clone_or_pull(repo))
 
     return cloned

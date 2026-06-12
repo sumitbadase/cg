@@ -33,3 +33,8 @@ def test_recreate_graph_returns_success() -> None:
     response = client.post("/recreate-graph")
     assert response.status_code == 200
     assert response.json()["status"] == "completed"
+
+
+def test_parse_repository_requires_input() -> None:
+    response = client.post("/parse-repository", json={})
+    assert response.status_code == 400
