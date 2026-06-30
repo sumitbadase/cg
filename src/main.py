@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator, Awaitable, Callable, TypeVar
 
 from fastapi import FastAPI, HTTPException, Query, status
+from fastapi.responses import HTMLResponse
 from loguru import logger
 
 import entrypoints
@@ -14,6 +15,7 @@ from pydantic_formats import (
     AnalyzePRRequest,
     AnalyzePRWithCommentTargetRequest,
     CloneRepositoryRequest,
+    DashboardMetricsResponse,
     GraphOperationResponse,
     HealthResponse,
     InitialFillJiraRequest,
@@ -68,6 +70,20 @@ async def _invoke(handler: Callable[..., Awaitable[T]], *args: object, **kwargs:
 @app.get("/health", response_model=HealthResponse, tags=["system"])
 async def get_health() -> HealthResponse:
     return entrypoints.health_check()
+
+
+@app.get("/dashboard", response_class=HTMLResponse, tags=["dashboard"])
+async def get_dashboard_page() -> HTMLResponse:
+    """Serve the CFUSA safety dashboard UI."""
+    return HTMLResponse(content=entrypoints.get_dashboard_html())
+
+
+@app.get("/dashboard/metrics", response_model=DashboardMetricsResponse, tags=["dashboard"])
+async def get_dashboard_metrics(
+    repository_name: str = Query(..., min_length=1),
+) -> DashboardMetricsResponse:
+    """Return code criticality, bug frequency, and functional safety metrics."""
+    return await _invoke(entrypoints.get_dashboard_metrics, repository_name)
 
 
 @app.post("/analyze-pr", response_model=OperationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["analysis"])

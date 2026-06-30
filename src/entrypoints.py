@@ -9,6 +9,7 @@ from typing import Any
 
 from loguru import logger
 
+from dashboard.metrics_aggregator import build_dashboard_metrics
 from exceptions import (
     ChangeAnalyzerError,
     ConfigurationError,
@@ -24,6 +25,7 @@ from pydantic_formats import (
     AnalyzePRRequest,
     AnalyzePRWithCommentTargetRequest,
     CloneRepositoryRequest,
+    DashboardMetricsResponse,
     GraphOperationResponse,
     HealthResponse,
     HealthStatus,
@@ -42,6 +44,18 @@ from utils import get_repo_storage_dir
 def health_check() -> HealthResponse:
     logger.debug("Health check requested")
     return HealthResponse(status=HealthStatus.OK)
+
+
+async def get_dashboard_metrics(repository_name: str) -> DashboardMetricsResponse:
+    """Return code criticality, bug frequency, and CFUSA/FuSa dashboard metrics."""
+    metrics = build_dashboard_metrics(repository_name)
+    return DashboardMetricsResponse(**metrics)
+
+
+def get_dashboard_html() -> str:
+    """Load the CFUSA safety dashboard HTML template."""
+    template_path = Path(__file__).resolve().parent / "dashboard" / "templates" / "dashboard.html"
+    return template_path.read_text(encoding="utf-8")
 
 
 async def analyze_pr(request: AnalyzePRRequest) -> OperationResponse:

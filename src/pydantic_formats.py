@@ -104,6 +104,19 @@ class OperationResponse(BaseModel):
     data: dict[str, Any] | None = None
 
 
+class DashboardMetricsResponse(BaseModel):
+    """Dashboard payload for code criticality, bug frequency, and FuSa metrics."""
+
+    generated_at: str
+    repository_name: str
+    head_commit: str | None = None
+    file_count: int
+    criticality: dict[str, Any]
+    bug_frequency: dict[str, Any]
+    functional_safety: dict[str, Any]
+    cfusa_dashboard: dict[str, Any]
+
+
 def normalize_repo_slug(value: str) -> str:
     normalized = value.strip()
     if not normalized:

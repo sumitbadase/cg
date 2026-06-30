@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CFUSA Safety Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --danger: #f87171;
+      --warn: #fbbf24;
+      --ok: #4ade80;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+    h1, h2 { margin: 0 0 12px; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    input, button {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+    button { cursor: pointer; background: #0369a1; border-color: #0369a1; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .kpi {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .muted { color: var(--muted); font-size: 0.9rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid #334155;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .critical { background: #7f1d1d; color: #fecaca; }
+    .high { background: #78350f; color: #fde68a; }
+    .medium { background: #1e3a8a; color: #bfdbfe; }
+    .low { background: #14532d; color: #bbf7d0; }
+    .chart-wrap { height: 280px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>CFUSA Safety Dashboard</h1>
+      <p class="muted">Code criticality, bug frequency, and functional safety (FuSa) metrics</p>
+    </div>
+    <div class="controls">
+      <input id="repoInput" placeholder="repository name (e.g. linux)" />
+      <button id="loadBtn">Load Metrics</button>
+    </div>
+  </div>
+
+  <div class="grid" id="kpiCards"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Code Criticality</h2>
+      <div class="chart-wrap"><canvas id="criticalityChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Bug Severity</h2>
+      <div class="chart-wrap"><canvas id="bugChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>ASIL Distribution (FuSa)</h2>
+      <div class="chart-wrap"><canvas id="asilChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Bug Trend</h2>
+      <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Top Critical Files</h2>
+      <table id="criticalFilesTable"><thead><tr><th>File</th><th>Score</th><th>Level</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Compliance Gaps</h2>
+      <table id="gapTable"><thead><tr><th>Gap</th><th>Count</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <script>
+    let charts = {};
+
+    function destroyCharts() {
+      Object.values(charts).forEach(chart => chart.destroy());
+      charts = {};
+    }
+
+    function renderKpis(data) {
+      const cards = [
+        ["CFUSA Readiness", `${data.cfusa_dashboard.readiness_score}%`, "Functional safety readiness"],
+        ["Avg Criticality", data.criticality.average_score, "Mean file criticality score"],
+        ["Total Bugs", data.bug_frequency.total_bugs, `Source: ${data.bug_frequency.data_source}`],
+        ["Safety Review Files", data.functional_safety.files_requiring_safety_review, "ASIL-B or higher"],
+      ];
+      document.getElementById("kpiCards").innerHTML = cards.map(([title, value, subtitle]) => `
+        <div class="card">
+          <div class="muted">${title}</div>
+          <div class="kpi">${value}</div>
+          <div class="muted">${subtitle}</div>
+        </div>
+      `).join("");
+    }
+
+    function makeChart(id, type, labels, values, colors) {
+      const ctx = document.getElementById(id);
+      charts[id] = new Chart(ctx, {
+        type,
+        data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: "#e2e8f0" } } },
+          scales: type === "bar" || type === "line" ? {
+            x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
+            y: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
+          } : {},
+        },
+      });
+    }
+
+    function renderTables(data) {
+      const criticalBody = document.querySelector("#criticalFilesTable tbody");
+      criticalBody.innerHTML = (data.criticality.top_critical_files || []).map(item => `
+        <tr>
+          <td>${item.path}</td>
+          <td>${item.score}</td>
+          <td><span class="badge ${item.level}">${item.level}</span></td>
+        </tr>
+      `).join("");
+
+      const gaps = data.functional_safety.compliance_gap_summary || {};
+      document.querySelector("#gapTable tbody").innerHTML = Object.entries(gaps).map(([gap, count]) => `
+        <tr><td>${gap}</td><td>${count}</td></tr>
+      `).join("") || "<tr><td colspan='2'>No gaps detected</td></tr>";
+    }
+
+    async function loadDashboard() {
+      const repo = document.getElementById("repoInput").value.trim();
+      if (!repo) return alert("Enter a repository name");
+
+      const response = await fetch(`/dashboard/metrics?repository_name=${encodeURIComponent(repo)}`);
+      if (!response.ok) {
+        const err = await response.json();
+        alert(err.detail?.message || "Failed to load metrics");
+        return;
+      }
+
+      const data = await response.json();
+      destroyCharts();
+      renderKpis(data);
+
+      const critDist = data.criticality.distribution;
+      makeChart("criticalityChart", "doughnut",
+        Object.keys(critDist), Object.values(critDist),
+        ["#f87171", "#fbbf24", "#60a5fa", "#4ade80"]);
+
+      const bugDist = data.bug_frequency.severity_distribution;
+      makeChart("bugChart", "pie",
+        Object.keys(bugDist), Object.values(bugDist),
+        ["#ef4444", "#f97316", "#eab308", "#22c55e"]);
+
+      const asilDist = data.functional_safety.asil_distribution;
+      makeChart("asilChart", "bar",
+        Object.keys(asilDist), Object.values(asilDist),
+        "#38bdf8");
+
+      const trend = data.bug_frequency.trend || [];
+      makeChart("trendChart", "line",
+        trend.map(item => item.month), trend.map(item => item.count),
+        "#a78bfa");
+
+      renderTables(data);
+    }
+
+    document.getElementById("loadBtn").addEventListener("click", loadDashboard);
+  </script>
+</body>
+</html>

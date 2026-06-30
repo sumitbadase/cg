@@ -50,3 +50,10 @@ def get_repo_storage_dir() -> Path:
 def get_inventory_storage_dir() -> Path:
     """Return the local directory used for saved repository inventories."""
     return Path(os.getenv("INVENTORY_STORAGE_DIR", "data/inventories")).resolve()
+
+
+def get_bug_storage_dir() -> Path:
+    """Return the local directory used for repository bug record files."""
+    path = Path(os.getenv("BUG_STORAGE_DIR", "data/bugs")).resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
